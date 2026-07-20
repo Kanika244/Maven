@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import {
   Activity,
   ArrowRight,
@@ -37,11 +37,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 export const Route = createFileRoute("/_app/")({
+  beforeLoad: () => {
+    throw redirect({ to: "/login" });
+  },
   head: () => ({ meta: [{ title: "Dashboard — MAVEN" }] }),
   component: Dashboard,
 });
 
-function Dashboard() {
+export function Dashboard() {
   return (
     <div>
       <PageHeader

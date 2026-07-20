@@ -23,6 +23,7 @@ import { Route as AppPortfolioRouteImport } from './routes/_app.portfolio'
 import { Route as AppNewsRouteImport } from './routes/_app.news'
 import { Route as AppMarketRouteImport } from './routes/_app.market'
 import { Route as AppExplainabilityRouteImport } from './routes/_app.explainability'
+import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
 import { Route as AppAssistantRouteImport } from './routes/_app.assistant'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -94,6 +95,11 @@ const AppExplainabilityRoute = AppExplainabilityRouteImport.update({
   path: '/explainability',
   getParentRoute: () => AppRoute,
 } as any)
+const AppDashboardRoute = AppDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAssistantRoute = AppAssistantRouteImport.update({
   id: '/assistant',
   path: '/assistant',
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/assistant': typeof AppAssistantRoute
+  '/dashboard': typeof AppDashboardRoute
   '/explainability': typeof AppExplainabilityRoute
   '/market': typeof AppMarketRoute
   '/news': typeof AppNewsRoute
@@ -122,6 +129,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/assistant': typeof AppAssistantRoute
+  '/dashboard': typeof AppDashboardRoute
   '/explainability': typeof AppExplainabilityRoute
   '/market': typeof AppMarketRoute
   '/news': typeof AppNewsRoute
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_app/assistant': typeof AppAssistantRoute
+  '/_app/dashboard': typeof AppDashboardRoute
   '/_app/explainability': typeof AppExplainabilityRoute
   '/_app/market': typeof AppMarketRoute
   '/_app/news': typeof AppNewsRoute
@@ -159,6 +168,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/sitemap.xml'
     | '/assistant'
+    | '/dashboard'
     | '/explainability'
     | '/market'
     | '/news'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/sitemap.xml'
     | '/assistant'
+    | '/dashboard'
     | '/explainability'
     | '/market'
     | '/news'
@@ -191,6 +202,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/sitemap.xml'
     | '/_app/assistant'
+    | '/_app/dashboard'
     | '/_app/explainability'
     | '/_app/market'
     | '/_app/news'
@@ -310,6 +322,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppExplainabilityRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/dashboard': {
+      id: '/_app/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AppDashboardRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/assistant': {
       id: '/_app/assistant'
       path: '/assistant'
@@ -322,6 +341,7 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppAssistantRoute: typeof AppAssistantRoute
+  AppDashboardRoute: typeof AppDashboardRoute
   AppExplainabilityRoute: typeof AppExplainabilityRoute
   AppMarketRoute: typeof AppMarketRoute
   AppNewsRoute: typeof AppNewsRoute
@@ -335,6 +355,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppAssistantRoute: AppAssistantRoute,
+  AppDashboardRoute: AppDashboardRoute,
   AppExplainabilityRoute: AppExplainabilityRoute,
   AppMarketRoute: AppMarketRoute,
   AppNewsRoute: AppNewsRoute,

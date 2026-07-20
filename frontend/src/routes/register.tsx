@@ -21,6 +21,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cx } from "@/lib/format";
+import { apiFetch, API_BASE_URL } from "@/lib/api";
 
 export const Route = createFileRoute("/register")({
   head: () => ({ meta: [{ title: "Create account — MAVEN" }] }),
@@ -88,6 +89,31 @@ function RegisterPage() {
   const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
   const back = () => setStep((s) => Math.max(s - 1, 0));
 
+  async function submitProfile() {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        full_name: form.fullName,
+        phone: form.phone,
+        city: form.city,
+        risk: form.risk,
+        goal: form.goal,
+        horizon: form.horizon,
+        experience: form.experience,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail ?? "Could not save your profile");
+    }
+    navigate({ to: "/" });
+  }
+
   return (
     <AuthLayout
       wide
@@ -109,7 +135,7 @@ function RegisterPage() {
           <PersonaStep form={form} set={set} onNext={next} onBack={back} />
         )}
         {current === "review" && (
-          <ReviewStep form={form} set={set} onBack={back} onSubmit={() => navigate({ to: "/" })} />
+          <ReviewStep form={form} set={set} onBack={back} onSubmit={submitProfile} />
         )}
       </div>
 
@@ -202,16 +228,70 @@ type StepProps = {
 function AccountStep({ form, set, onNext }: StepProps) {
   const [phase, setPhase] = useState<"email" | "otp" | "password">("email");
   const [otp, setOtp] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function sendCode(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      await apiFetch("/api/auth/send_email_otp", {
+        method: "POST",
+        body: JSON.stringify({ email: form.email }),
+      });
+      setPhase("otp");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send code");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function verifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      await apiFetch("/api/auth/verify", {
+        method: "POST",
+        body: JSON.stringify({ email: form.email, otp }),
+      });
+      setPhase("password");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Invalid or expired code");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      await apiFetch("/api/auth/setup-password", {
+        method: "POST",
+        body: JSON.stringify({ email: form.email, password: form.password }),
+      });
+      // Auto sign-in so subsequent steps (KYC upload) have a bearer token
+      const loginData = await apiFetch("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email: form.email, password: form.password }),
+      });
+      localStorage.setItem("token", loginData.access_token);
+      localStorage.setItem("user_name", loginData.name ?? "");
+      onNext();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create your account");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   if (phase === "email") {
     return (
-      <form
-        className="space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setPhase("otp");
-        }}
-      >
+      <form className="space-y-4" onSubmit={sendCode}>
         <div className="space-y-2">
           <Label htmlFor="email">Email address</Label>
           <Input
@@ -226,8 +306,10 @@ function AccountStep({ form, set, onNext }: StepProps) {
             We'll send a 6-digit verification code to this email.
           </p>
         </div>
-        <Button type="submit" className="w-full">
-          <Mail className="h-4 w-4" /> Send code
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <Button type="submit" className="w-full" disabled={loading}>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+          {loading ? "Sending..." : "Send code"}
         </Button>
       </form>
     );
@@ -235,18 +317,11 @@ function AccountStep({ form, set, onNext }: StepProps) {
 
   if (phase === "otp") {
     return (
-      <form
-        className="space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setPhase("password");
-        }}
-      >
+      <form className="space-y-4" onSubmit={verifyCode}>
         <div className="space-y-2">
           <Label>Enter verification code</Label>
           <p className="text-xs text-muted-foreground">
             Sent to <span className="font-medium text-foreground">{form.email || "your email"}</span>.
-            Use any 6 digits for this demo.
           </p>
           <div className="pt-1">
             <InputOTP maxLength={6} value={otp} onChange={setOtp}>
@@ -260,26 +335,25 @@ function AccountStep({ form, set, onNext }: StepProps) {
           <button
             type="button"
             className="text-xs font-medium text-primary hover:underline"
-            onClick={() => setPhase("email")}
+            onClick={() => {
+              setPhase("email");
+              setError(null);
+            }}
           >
             Change email
           </button>
         </div>
-        <Button type="submit" className="w-full" disabled={otp.length < 6}>
-          Verify code
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <Button type="submit" className="w-full" disabled={otp.length < 6 || loading}>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          {loading ? "Verifying..." : "Verify code"}
         </Button>
       </form>
     );
   }
 
   return (
-    <form
-      className="space-y-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onNext();
-      }}
-    >
+    <form className="space-y-4" onSubmit={submitPassword}>
       <div className="mb-1 inline-flex items-center gap-2 rounded-full border border-positive/25 bg-positive/10 px-3 py-1 text-xs font-medium text-positive">
         <BadgeCheck className="h-3.5 w-3.5" /> Email verified
       </div>
@@ -308,12 +382,14 @@ function AccountStep({ form, set, onNext }: StepProps) {
           <p className="text-xs text-negative">Passwords do not match.</p>
         )}
       </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
       <Button
         type="submit"
         className="w-full"
-        disabled={!form.password || form.password !== form.confirm}
+        disabled={!form.password || form.password !== form.confirm || loading}
       >
-        Continue <ArrowRight className="h-4 w-4" />
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+        {loading ? "Creating account..." : "Continue"}
       </Button>
     </form>
   );
@@ -373,6 +449,7 @@ function PersonalStep({ form, set, onNext, onBack }: StepProps) {
 /* ---------------- Doc upload + verify ---------------- */
 function DocVerify({
   icon: Icon,
+  docType,
   docLabel,
   fieldLabel,
   placeholder,
@@ -386,6 +463,7 @@ function DocVerify({
   onBack,
 }: {
   icon: typeof CreditCard;
+  docType: "pan" | "aadhaar";
   docLabel: string;
   fieldLabel: string;
   placeholder: string;
@@ -399,11 +477,42 @@ function DocVerify({
   onBack?: () => void;
 }) {
   const [state, setState] = useState<VerifyState>(file ? "verified" : "idle");
+  const [error, setError] = useState<string | null>(null);
+  const [localFile, setLocalFile] = useState<File | null>(null);
+  const [justAutofilled, setJustAutofilled] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const runVerify = () => {
+  const runVerify = async () => {
+    if (!localFile) return;
     setState("verifying");
-    setTimeout(() => setState("verified"), 1600);
+    setError(null);
+
+    const token = localStorage.getItem("token");
+    const formData = new FormData();
+    formData.append("doc_type", docType);
+    formData.append("file", localFile);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/kyc/upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail ?? `Could not verify ${docLabel}`);
+      }
+      const data = await res.json();
+      if (data.extracted_id_number) {
+        onValue(format(data.extracted_id_number));
+        setJustAutofilled(true);
+        setTimeout(() => setJustAutofilled(false), 1200);
+      }
+      setState("verified");
+    } catch (err) {
+      setState("idle");
+      setError(err instanceof Error ? err.message : `Could not verify ${docLabel}`);
+    }
   };
 
   return (
@@ -423,11 +532,18 @@ function DocVerify({
             onValue(format(e.target.value));
             if (state === "verified") setState("idle");
           }}
+          className={cx(
+            "transition-colors duration-500",
+            justAutofilled && "border-positive ring-2 ring-positive/40 bg-positive/5",
+          )}
         />
+        <p className="text-xs text-muted-foreground">
+          Auto-filled from your upload — double-check it matches your document.
+        </p>
       </div>
 
       <div className="space-y-2">
-        <Label>Upload {docLabel} image</Label>
+        <Label>Upload {docLabel} (image or PDF)</Label>
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
@@ -442,29 +558,33 @@ function DocVerify({
           <span className="text-sm font-medium">
             {file ?? `Click to upload ${docLabel}`}
           </span>
-          <span className="text-xs text-muted-foreground">PNG, JPG up to 5MB</span>
+          <span className="text-xs text-muted-foreground">JPG, PNG, or PDF up to 10MB</span>
         </button>
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,application/pdf"
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0];
             if (f) {
+              setLocalFile(f);
               onFile(f.name);
               setState("idle");
+              setError(null);
             }
           }}
         />
       </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       {state === "idle" && (
         <Button
           type="button"
           variant="secondary"
           className="w-full"
-          disabled={!file || !valid}
+          disabled={!localFile}
           onClick={runVerify}
         >
           <ShieldCheck className="h-4 w-4" /> Verify {docLabel}
@@ -472,7 +592,7 @@ function DocVerify({
       )}
       {state === "verifying" && (
         <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Verifying {docLabel}…
+          <Loader2 className="h-4 w-4 animate-spin" /> Reading {docLabel}…
         </div>
       )}
       {state === "verified" && (
@@ -481,7 +601,7 @@ function DocVerify({
         </div>
       )}
 
-      <StepNav onBack={onBack} nextDisabled={state !== "verified"} />
+      <StepNav onBack={onBack} nextDisabled={state !== "verified" || !valid} />
     </form>
   );
 }
@@ -490,6 +610,7 @@ function PanStep({ form, set, onNext, onBack }: StepProps) {
   return (
     <DocVerify
       icon={CreditCard}
+      docType="pan"
       docLabel="PAN"
       fieldLabel="PAN number"
       placeholder="ABCDE1234F"
@@ -509,6 +630,7 @@ function AadhaarStep({ form, set, onNext, onBack }: StepProps) {
   return (
     <DocVerify
       icon={IdCard}
+      docType="aadhaar"
       docLabel="Aadhaar"
       fieldLabel="Aadhaar number"
       placeholder="1234 5678 9012"
@@ -649,8 +771,11 @@ function ReviewStep({
   form: FormState;
   set: <K extends keyof FormState>(k: K, v: FormState[K]) => void;
   onBack: () => void;
-  onSubmit: () => void;
+  onSubmit: () => Promise<void>;
 }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const label = (opts: { value: string; label: string }[], v: string) =>
     opts.find((o) => o.value === v)?.label ?? v;
 
@@ -677,9 +802,17 @@ function ReviewStep({
   return (
     <form
       className="space-y-4"
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
-        onSubmit();
+        setError(null);
+        setLoading(true);
+        try {
+          await onSubmit();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Could not save your profile");
+        } finally {
+          setLoading(false);
+        }
       }}
     >
       <div className="overflow-hidden rounded-lg border border-border">
@@ -710,12 +843,15 @@ function ReviewStep({
         investment advice.
       </label>
 
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
       <div className="flex items-center gap-3">
         <Button type="button" variant="outline" onClick={onBack}>
           <ArrowLeft className="h-4 w-4" /> Back
         </Button>
-        <Button type="submit" className="flex-1" disabled={!form.agree}>
-          <UserRound className="h-4 w-4" /> Create account
+        <Button type="submit" className="flex-1" disabled={!form.agree || loading}>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserRound className="h-4 w-4" />}
+          {loading ? "Saving..." : "Create account"}
         </Button>
       </div>
     </form>
