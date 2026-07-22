@@ -80,7 +80,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
         <div className="flex h-16 items-center border-b border-sidebar-border px-5">
-          <Brand />
+          <Brand logoSrc="/logo-light.png" />
         </div>
         <div className="flex-1 overflow-y-auto">
           <NavList pathname={pathname} />
@@ -97,7 +97,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           />
           <aside className="absolute inset-y-0 left-0 flex w-72 flex-col border-r border-sidebar-border bg-sidebar">
             <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-5">
-              <Brand />
+              <Brand logoSrc="/logo-light.png" />
               <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)}>
                 <X className="h-5 w-5" />
               </Button>

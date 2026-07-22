@@ -27,7 +27,7 @@ export function AuthLayout({
           className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full opacity-30 blur-3xl"
           style={{ background: "var(--gradient-brand)" }}
         />
-        <Brand />
+        <Brand logoSrc="/logo-light.png" />
         <div className="relative z-10 max-w-md">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
             <ShieldCheck className="h-3.5 w-3.5" /> Multi-Agent Wealth & Equity Navigator
@@ -63,7 +63,7 @@ export function AuthLayout({
       <div className="flex items-center justify-center px-6 py-12">
         <div className={wide ? "w-full max-w-xl" : "w-full max-w-sm"}>
           <div className="mb-8 lg:hidden">
-            <Brand />
+            <Brand logoSrc="/logo-light.png" />
           </div>
           <h1 className="text-2xl font-semibold">{title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>

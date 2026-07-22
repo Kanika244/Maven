@@ -15,7 +15,7 @@ import {
 export type NavItem = { label: string; to: string; icon: LucideIcon; group: string };
 
 export const navItems: NavItem[] = [
-  { label: "Dashboard", to: "/", icon: LayoutDashboard, group: "Overview" },
+  { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard, group: "Overview" },
   { label: "Portfolio", to: "/portfolio", icon: Briefcase, group: "Overview" },
   { label: "AI Recommendations", to: "/recommendations", icon: Sparkles, group: "Intelligence" },
   { label: "Rebalancing", to: "/rebalancing", icon: Scale, group: "Intelligence" },
