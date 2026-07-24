@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import String, DateTime, func
+from sqlalchemy import String, DateTime, Float, JSON, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -51,6 +51,21 @@ class OTP(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class NewsArticle(Base):
+    __tablename__ = "news_articles"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    source: Mapped[str] = mapped_column(String, nullable=False)
+    link: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    summary: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    sentiment: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Positive | Neutral | Negative
+    score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    related: Mapped[Optional[list]] = mapped_column(JSON, default=list)  # e.g. ["RELIANCE", "TCS"]
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 # ---------- Pydantic schemas ----------
 
 class RegisterRequest(BaseModel):
@@ -86,6 +101,11 @@ class OTPVerify(BaseModel):
     otp: str
 
 
+class ChangePassword(BaseModel):
+    current_password: str
+    new_password: str
+
+
 class ProfileUpdate(BaseModel):
     full_name: Optional[str] = None
     phone: Optional[str] = None
@@ -94,3 +114,18 @@ class ProfileUpdate(BaseModel):
     goal: Optional[str] = None
     horizon: Optional[str] = None
     experience: Optional[str] = None
+
+
+class NewsArticleResponse(BaseModel):
+    id: str
+    title: str
+    source: str
+    link: str
+    summary: Optional[str] = None
+    sentiment: Optional[str] = None
+    score: Optional[float] = None
+    related: list[str] = []
+    published_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True

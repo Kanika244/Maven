@@ -23,6 +23,7 @@ from models import (
     PasswordSetup,
     OTPVerify,
     ProfileUpdate,
+    ChangePassword,
 )
 from utils.email_templates import get_reset_password_email, get_otp_email
 from utils.email_utils import generate_otp, send_email_smtplib
@@ -236,6 +237,33 @@ async def send_email_otp(data: EmailRequest, db: AsyncSession = Depends(get_db))
     return {"message": "OTP sent successfully"}
 
 
+@authrouter.get("/profile")
+async def get_profile(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the logged-in user's account + investor profile data,
+    for pages like /profile in the frontend to render real data instead
+    of mock-data.
+    """
+    result = await db.execute(
+        select(InvestorProfile).where(InvestorProfile.user_id == current_user.id)
+    )
+    profile = result.scalar_one_or_none()
+
+    return {
+        "name": current_user.name or "",
+        "email": current_user.email,
+        "member_since": current_user.created_at.strftime("%B %Y"),
+        "phone": profile.phone if profile else None,
+        "city": profile.city if profile else None,
+        "risk": profile.risk if profile else None,
+        "goal": profile.goal if profile else None,
+        "horizon": profile.horizon if profile else None,
+        "experience": profile.experience if profile else None,
+    }
+
+
 @authrouter.post("/profile")
 async def update_profile(
     data: ProfileUpdate,
@@ -267,6 +295,77 @@ async def update_profile(
 
     await db.commit()
     return {"message": "Profile saved successfully"}
+
+
+@authrouter.post("/change-password")
+async def change_password(
+    data: ChangePassword,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if not current_user.password or not verify_password(data.current_password, current_user.password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    if len(data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+
+    current_user.password = hash_password(data.new_password)
+    current_user.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    return {"message": "Password updated successfully"}
+
+
+@authrouter.get("/export")
+async def export_my_data(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return everything real we hold on this user, for the 'Full data (JSON)'
+    export in Settings. Holdings/recommendations aren't included since those
+    are still mock data with no backing table yet.
+    """
+    result = await db.execute(
+        select(InvestorProfile).where(InvestorProfile.user_id == current_user.id)
+    )
+    profile = result.scalar_one_or_none()
+
+    return {
+        "account": {
+            "name": current_user.name,
+            "email": current_user.email,
+            "status": current_user.status,
+            "created_at": current_user.created_at.isoformat(),
+        },
+        "investor_profile": {
+            "phone": profile.phone if profile else None,
+            "city": profile.city if profile else None,
+            "risk": profile.risk if profile else None,
+            "goal": profile.goal if profile else None,
+            "horizon": profile.horizon if profile else None,
+            "experience": profile.experience if profile else None,
+        }
+        if profile
+        else None,
+    }
+
+
+@authrouter.delete("/account")
+async def delete_account(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Permanently delete the logged-in user's account and known related
+    rows. Note: this does NOT clean up anything owned by kyc.py (uploaded
+    documents, KYC records) since that schema isn't visible from this file —
+    if kyc.py stores files/rows keyed by user_id, add that cleanup there too.
+    """
+    await db.execute(delete(InvestorProfile).where(InvestorProfile.user_id == current_user.id))
+    await db.execute(delete(OTP).where(OTP.email == current_user.email))
+    await db.execute(delete(User).where(User.id == current_user.id))
+    await db.commit()
+
+    return {"message": "Account deleted successfully"}
 
 
 @authrouter.post("/forgot-password")

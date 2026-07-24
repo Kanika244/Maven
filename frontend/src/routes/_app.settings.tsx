@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Bell, Database, Download, KeyRound, Plug, SlidersHorizontal, UserCog } from "lucide-react";
-import { investor } from "@/lib/mock-data";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { Bell, Database, Download, KeyRound, Loader2, Plug, SlidersHorizontal, UserCog } from "lucide-react";
 import { PageHeader } from "@/components/maven/primitives";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { API_BASE_URL } from "@/lib/api";
 
 export const Route = createFileRoute("/_app/settings")({
   head: () => ({ meta: [{ title: "Settings — MAVEN" }] }),
@@ -35,9 +36,154 @@ const apis = [
 ];
 
 function SettingsPage() {
+  const navigate = useNavigate();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const token = localStorage.getItem("access_token");
+        const res = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("Could not load your profile");
+        const data = await res.json();
+        setName(data.name || "");
+        setEmail(data.email || "");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not load your profile");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  async function handleSaveProfile() {
+    setSaving(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ full_name: name }),
+      });
+      if (!res.ok) throw new Error("Could not save your profile");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save your profile");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwError, setPwError] = useState<string | null>(null);
+  const [pwSuccess, setPwSuccess] = useState(false);
+
+  async function handleChangePassword() {
+    setPwSaving(true);
+    setPwError(null);
+    setPwSuccess(false);
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`${API_BASE_URL}/api/auth/change-password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail ?? "Could not update password");
+      setCurrentPassword("");
+      setNewPassword("");
+      setPwSuccess(true);
+    } catch (err) {
+      setPwError(err instanceof Error ? err.message : "Could not update password");
+    } finally {
+      setPwSaving(false);
+    }
+  }
+
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  async function handleExportJson() {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`${API_BASE_URL}/api/auth/export`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Could not export your data");
+      const data = await res.json();
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "maven-my-data.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Could not export your data");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleDeleteAccount() {
+    const confirmed = window.confirm(
+      "This will permanently delete your account and all associated data. This cannot be undone. Continue?"
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`${API_BASE_URL}/api/auth/account`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Could not delete your account");
+
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("user_id");
+      localStorage.removeItem("user_name");
+      navigate({ to: "/login" });
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Could not delete your account");
+      setDeleting(false);
+    }
+  }
+
   return (
     <div>
       <PageHeader eyebrow="Configuration" title="Settings" subtitle="Manage your account, security and platform preferences." />
+
+      {error && (
+        <div className="mb-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
       <Tabs defaultValue="profile">
         <TabsList className="mb-4 flex flex-wrap gap-1">
@@ -52,11 +198,23 @@ function SettingsPage() {
         <TabsContent value="profile">
           <Card><CardHeader><CardTitle>Profile Settings</CardTitle></CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2"><Label>Display name</Label><Input defaultValue={investor.name} /></div>
-              <div className="space-y-2"><Label>Email</Label><Input defaultValue={investor.email} /></div>
-              <div className="space-y-2"><Label>Language</Label><Input defaultValue="English (India)" /></div>
-              <div className="space-y-2"><Label>Base currency</Label><Input defaultValue="INR (₹)" /></div>
-              <div className="sm:col-span-2"><Button>Save profile</Button></div>
+              {loading ? (
+                <div className="flex h-24 items-center justify-center text-muted-foreground sm:col-span-2">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2"><Label>Display name</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
+                  <div className="space-y-2"><Label>Email</Label><Input value={email} disabled /></div>
+                  <div className="space-y-2"><Label>Language</Label><Input defaultValue="English (India)" /></div>
+                  <div className="space-y-2"><Label>Base currency</Label><Input defaultValue="INR (₹)" /></div>
+                  <div className="sm:col-span-2">
+                    <Button onClick={handleSaveProfile} disabled={saving}>
+                      {saving ? "Saving..." : "Save profile"}
+                    </Button>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -64,9 +222,26 @@ function SettingsPage() {
         <TabsContent value="security">
           <Card><CardHeader><CardTitle>Security</CardTitle></CardHeader>
             <CardContent className="divide-y divide-border/60">
-              <div className="grid gap-4 pb-4 sm:grid-cols-2">
-                <div className="space-y-2"><Label>Current password</Label><Input type="password" defaultValue="password" /></div>
-                <div className="space-y-2"><Label>New password</Label><Input type="password" /></div>
+              <div className="space-y-4 pb-4">
+                {pwError && (
+                  <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{pwError}</div>
+                )}
+                {pwSuccess && (
+                  <div className="rounded-md bg-positive/10 px-3 py-2 text-sm text-positive">Password updated successfully.</div>
+                )}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Current password</Label>
+                    <Input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>New password</Label>
+                    <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                  </div>
+                </div>
+                <Button onClick={handleChangePassword} disabled={pwSaving || !currentPassword || !newPassword}>
+                  {pwSaving ? "Updating..." : "Update password"}
+                </Button>
               </div>
               <Row title="Two-factor authentication" desc="Add an extra layer of security with OTP."><Switch defaultChecked /></Row>
               <Row title="Biometric login" desc="Use fingerprint or face unlock on mobile."><Switch /></Row>

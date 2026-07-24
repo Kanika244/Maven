@@ -90,7 +90,7 @@ function RegisterPage() {
   const back = () => setStep((s) => Math.max(s - 1, 0));
 
   async function submitProfile() {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("access_token");
     const res = await fetch(`${API_BASE_URL}/api/auth/profile`, {
       method: "POST",
       headers: {
@@ -487,7 +487,7 @@ function DocVerify({
     setState("verifying");
     setError(null);
 
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("access_token");
     const formData = new FormData();
     formData.append("doc_type", docType);
     formData.append("file", localFile);
