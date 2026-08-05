@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import String, DateTime, Float, JSON, func
+from sqlalchemy import String, DateTime, Float, Integer, JSON, Boolean, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -66,6 +66,58 @@ class NewsArticle(Base):
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class MarketQuote(Base):
+    __tablename__ = "market_quotes"
+
+    symbol: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    sector: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    ltp: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    prev_close: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    change: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    pct_change: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    day_high: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    day_low: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    year_high: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    year_low: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    volume: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    pe: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    sector_pe: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    rsi14: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    sentiment: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Positive | Neutral | Negative
+    analysis_summary: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # LLM-generated read, see market_agent/analysis.py
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class CorporateAnnouncement(Base):
+    __tablename__ = "corporate_announcements"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    symbol: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    subject: Mapped[str] = mapped_column(String, nullable=False)
+    attachment_text: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    attachment_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    broadcast_date: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # raw NSE string, e.g. "27-Jul-2026 18:30:00"
+    is_financial_result: Mapped[bool] = mapped_column(Boolean, default=False)
+    filing_excerpt: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # extracted PDF text, see market_agent/filing_reader.py
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class QuarterlyFinancial(Base):
+    __tablename__ = "quarterly_financials"
+    __table_args__ = (UniqueConstraint("symbol", "quarter_end", name="uq_symbol_quarter"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    symbol: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    quarter_end: Mapped[str] = mapped_column(String, nullable=False)  # "YYYY-MM-DD"
+    revenue: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    net_income: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    eps: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    yoy_revenue_growth: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    yoy_profit_growth: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 # ---------- Pydantic schemas ----------
 
 class RegisterRequest(BaseModel):
@@ -126,6 +178,53 @@ class NewsArticleResponse(BaseModel):
     score: Optional[float] = None
     related: list[str] = []
     published_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class MarketQuoteResponse(BaseModel):
+    symbol: str
+    name: str
+    sector: Optional[str] = None
+    ltp: Optional[float] = None
+    change: Optional[float] = None
+    pct_change: Optional[float] = None
+    day_high: Optional[float] = None
+    day_low: Optional[float] = None
+    pe: Optional[float] = None
+    sector_pe: Optional[float] = None
+    rsi14: Optional[float] = None
+    sentiment: Optional[str] = None
+    analysis_summary: Optional[str] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class CorporateAnnouncementResponse(BaseModel):
+    id: str
+    symbol: str
+    subject: str
+    attachment_text: Optional[str] = None
+    attachment_url: Optional[str] = None
+    broadcast_date: Optional[str] = None
+    is_financial_result: bool = False
+    filing_excerpt: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class QuarterlyFinancialResponse(BaseModel):
+    symbol: str
+    quarter_end: str
+    revenue: Optional[float] = None
+    net_income: Optional[float] = None
+    eps: Optional[float] = None
+    yoy_revenue_growth: Optional[float] = None
+    yoy_profit_growth: Optional[float] = None
 
     class Config:
         from_attributes = True

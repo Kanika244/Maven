@@ -24,6 +24,13 @@ const tooltipStyle = {
   fontSize: 12,
 };
 
+// Recharts sets its own default (dark/black) text color on the tooltip's
+// label and item rows independently of contentStyle above — contentStyle
+// only themes the outer box. Without these, every chart's tooltip text is
+// illegible against a dark background, not just this one.
+const tooltipLabelStyle = { color: "var(--popover-foreground)", fontWeight: 600 };
+const tooltipItemStyle = { color: "var(--popover-foreground)" };
+
 export function PerformanceChart({
   data,
   height = 280,
@@ -42,7 +49,7 @@ export function PerformanceChart({
         </defs>
         <XAxis dataKey="month" tickLine={false} axisLine={false} tick={axis} />
         <YAxis tickLine={false} axisLine={false} tick={axis} width={44} />
-        <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: grid }} />
+        <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} cursor={{ stroke: grid }} />
         <Area
           type="monotone"
           dataKey="portfolio"
@@ -71,7 +78,7 @@ export function GrowthChart({ data, height = 260 }: { data: { year: string; valu
       <BarChart data={data} margin={{ left: -12, right: 8, top: 8 }}>
         <XAxis dataKey="year" tickLine={false} axisLine={false} tick={axis} />
         <YAxis tickLine={false} axisLine={false} tick={axis} width={44} />
-        <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--muted)", opacity: 0.4 }} />
+        <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} cursor={{ fill: "var(--muted)", opacity: 0.4 }} />
         <Bar dataKey="value" name="Value (₹K)" radius={[6, 6, 0, 0]} fill="var(--chart-1)" />
       </BarChart>
     </ResponsiveContainer>
@@ -103,7 +110,7 @@ export function DonutChart({
             <Cell key={d.name} fill={d.color ?? palette[i % palette.length]} />
           ))}
         </Pie>
-        <Tooltip contentStyle={tooltipStyle} />
+        <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} />
       </PieChart>
     </ResponsiveContainer>
   );
@@ -129,7 +136,13 @@ export function SectorBars({
           tick={axis}
           width={92}
         />
-        <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--muted)", opacity: 0.4 }} />
+        <Tooltip
+          contentStyle={tooltipStyle}
+          labelStyle={tooltipLabelStyle}
+          itemStyle={tooltipItemStyle}
+          cursor={{ fill: "var(--muted)", opacity: 0.4 }}
+          formatter={(value: number) => [`${value.toFixed(2)}%`, key === "pct" ? "Change" : "Value"]}
+        />
         <Bar dataKey={key} radius={[0, 6, 6, 0]}>
           {data.map((d) => (
             <Cell

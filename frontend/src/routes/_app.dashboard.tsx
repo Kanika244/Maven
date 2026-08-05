@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   ArrowRight,
@@ -12,11 +13,8 @@ import {
 } from "lucide-react";
 import {
   allocation,
-  gainers,
-  losers,
   marketInsights,
   news,
-  niftyOverview,
   performanceSeries,
   portfolioSummary,
   recommendations,
@@ -35,13 +33,61 @@ import { DonutChart, PerformanceChart } from "@/components/maven/charts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { API_BASE_URL } from "@/lib/api";
 
 export const Route = createFileRoute("/_app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — MAVEN" }] }),
   component: Dashboard,
 });
 
+// ---------- Shapes returned by the backend (market_agent/market_router.py) ----------
+// Same shapes as _app.market.tsx — only the fields this card actually uses.
+
+type MarketOverview = {
+  level: number | null;
+  changePct: number | null;
+  dayHigh: number | null;
+  dayLow: number | null;
+  advances: number | null;
+  declines: number | null;
+  vix: number | null;
+};
+
+type MarketCompany = {
+  symbol: string;
+  pct_change: number | null;
+};
+
 function Dashboard() {
+  const [overview, setOverview] = useState<MarketOverview | null>(null);
+  const [companies, setCompanies] = useState<MarketCompany[]>([]);
+  const [marketLoading, setMarketLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [overviewRes, companiesRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/market/overview`),
+          fetch(`${API_BASE_URL}/api/market/companies`),
+        ]);
+        if (overviewRes.ok) setOverview(await overviewRes.json());
+        if (companiesRes.ok) setCompanies(await companiesRes.json());
+      } catch {
+        // Card falls back to "—" placeholders below — rest of the
+        // dashboard doesn't depend on this, so no page-level error state.
+      } finally {
+        setMarketLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  const { gainers, losers } = useMemo(() => {
+    const ranked = companies.filter((c) => c.pct_change != null) as { symbol: string; pct_change: number }[];
+    const sorted = [...ranked].sort((a, b) => b.pct_change - a.pct_change);
+    return { gainers: sorted.slice(0, 3), losers: sorted.slice(-3).reverse() };
+  }, [companies]);
+
   return (
     <div>
       <PageHeader
@@ -208,51 +254,75 @@ function Dashboard() {
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        {/* Market summary */}
+        {/* Market summary — live from market_agent, not mock data */}
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>Nifty 50 Overview</CardTitle>
-            <Delta value={niftyOverview.changePct} />
+            <div className="flex items-center gap-2">
+              {overview?.changePct != null && <Delta value={overview.changePct} />}
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/market">
+                  All <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="font-num text-3xl font-semibold">{niftyOverview.level.toLocaleString("en-IN")}</div>
-            <div className="mt-1 text-xs text-muted-foreground">
-              H {niftyOverview.dayHigh.toLocaleString("en-IN")} · L {niftyOverview.dayLow.toLocaleString("en-IN")}
-            </div>
-            <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
-              <div className="rounded-lg bg-positive/10 p-2">
-                <div className="font-num text-lg font-semibold text-positive">{niftyOverview.advances}</div>
-                <div className="text-muted-foreground">Advances</div>
-              </div>
-              <div className="rounded-lg bg-negative/10 p-2">
-                <div className="font-num text-lg font-semibold text-negative">{niftyOverview.declines}</div>
-                <div className="text-muted-foreground">Declines</div>
-              </div>
-              <div className="rounded-lg bg-muted p-2">
-                <div className="font-num text-lg font-semibold">{niftyOverview.vix}</div>
-                <div className="text-muted-foreground">India VIX</div>
-              </div>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-4">
-              <div>
-                <div className="mb-1 text-[10px] uppercase tracking-wider text-positive">Top Gainers</div>
-                {gainers.slice(0, 3).map((g) => (
-                  <div key={g.symbol} className="flex justify-between py-0.5 text-xs">
-                    <span className="font-medium">{g.symbol}</span>
-                    <span className="font-num text-positive">{pct(g.pct)}</span>
+            {marketLoading ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
+            ) : (
+              <>
+                <div className="font-num text-3xl font-semibold">
+                  {overview?.level != null ? overview.level.toLocaleString("en-IN") : "—"}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  H {overview?.dayHigh != null ? overview.dayHigh.toLocaleString("en-IN") : "—"} · L{" "}
+                  {overview?.dayLow != null ? overview.dayLow.toLocaleString("en-IN") : "—"}
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+                  <div className="rounded-lg bg-positive/10 p-2">
+                    <div className="font-num text-lg font-semibold text-positive">{overview?.advances ?? "—"}</div>
+                    <div className="text-muted-foreground">Advances</div>
                   </div>
-                ))}
-              </div>
-              <div>
-                <div className="mb-1 text-[10px] uppercase tracking-wider text-negative">Top Losers</div>
-                {losers.slice(0, 3).map((l) => (
-                  <div key={l.symbol} className="flex justify-between py-0.5 text-xs">
-                    <span className="font-medium">{l.symbol}</span>
-                    <span className="font-num text-negative">{pct(l.pct)}</span>
+                  <div className="rounded-lg bg-negative/10 p-2">
+                    <div className="font-num text-lg font-semibold text-negative">{overview?.declines ?? "—"}</div>
+                    <div className="text-muted-foreground">Declines</div>
                   </div>
-                ))}
-              </div>
-            </div>
+                  <div className="rounded-lg bg-muted p-2">
+                    <div className="font-num text-lg font-semibold">{overview?.vix ?? "—"}</div>
+                    <div className="text-muted-foreground">India VIX</div>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="mb-1 text-[10px] uppercase tracking-wider text-positive">Top Gainers</div>
+                    {gainers.length > 0 ? (
+                      gainers.map((g) => (
+                        <div key={g.symbol} className="flex justify-between py-0.5 text-xs">
+                          <span className="font-medium">{g.symbol}</span>
+                          <span className="font-num text-positive">{pct(g.pct_change)}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-xs text-muted-foreground">—</div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="mb-1 text-[10px] uppercase tracking-wider text-negative">Top Losers</div>
+                    {losers.length > 0 ? (
+                      losers.map((l) => (
+                        <div key={l.symbol} className="flex justify-between py-0.5 text-xs">
+                          <span className="font-medium">{l.symbol}</span>
+                          <span className="font-num text-negative">{pct(l.pct_change)}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-xs text-muted-foreground">—</div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
