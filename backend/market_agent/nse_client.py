@@ -84,8 +84,17 @@ class NSEClient:
             logger.exception("NSE request failed: %s", path)
             return None
 
-    def get_corporate_announcements(self, days_back: int = 3) -> list[dict]:
+    def get_corporate_announcements(self, days_back: int = 30) -> list[dict]:
         """Market-wide announcements for the last `days_back` days.
+
+        Defaults to 30 days rather than a tighter window — results filings
+        specifically are infrequent (a handful of times a year per
+        company), so a short window has a real chance of catching zero of
+        them even though the fetch itself runs every 15 minutes. Ongoing
+        announcements still get caught the cycle after they're posted
+        either way, since we dedupe on (symbol, date, subject) — a wider
+        window just means more history re-scanned each time, not slower
+        detection of new ones.
 
         Fetched once (not per-symbol) — each item carries its own `symbol`
         field, so we bucket them locally in market_service.py instead of
