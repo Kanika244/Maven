@@ -10,6 +10,7 @@ from databases.postgres import engine, Base
 from databases.mongodb import mongodb
 from router.auth import authrouter
 from router.kyc import kycrouter
+from investor_onboarding.router import onboarding_router
 from news_agent.news_router import newsrouter
 from news_agent.news_service import fetch_and_store_news
 from market_agent.market_router import marketrouter
@@ -19,6 +20,7 @@ from market_agent.market_service import (
     fetch_and_store_quarterly_financials,
     generate_and_store_analyses,
 )
+from router.portfolio import portfoliorouter
 import models  # noqa: F401 — import registers all ORM models on Base.metadata before create_all runs
 
 
@@ -75,8 +77,10 @@ app.add_middleware(
 
 app.include_router(authrouter, prefix="/api/auth", tags=["auth"])
 app.include_router(kycrouter, prefix="/api/kyc", tags=["kyc"])
+app.include_router(onboarding_router, prefix="/api/onboarding", tags=["onboarding"])
 app.include_router(newsrouter, prefix="/api/news", tags=["news"])
 app.include_router(marketrouter, prefix="/api/market", tags=["market"])
+app.include_router(portfoliorouter, prefix="/api/portfolio", tags=["portfolio"])
 
 
 @app.get("/")

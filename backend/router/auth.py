@@ -16,6 +16,7 @@ from models import (
     User,
     OTP,
     InvestorProfile,
+    InvestorPersona,
     RegisterRequest,
     LoginRequest,
     LoginResponse,
@@ -246,10 +247,12 @@ async def get_profile(
     for pages like /profile in the frontend to render real data instead
     of mock-data.
     """
-    result = await db.execute(
-        select(InvestorProfile).where(InvestorProfile.user_id == current_user.id)
-    )
+    result = await db.execute(select(InvestorProfile).where(InvestorProfile.user_id == current_user.id))
     profile = result.scalar_one_or_none()
+    persona_result = await db.execute(select(InvestorPersona).where(InvestorPersona.user_id == current_user.id))
+    persona = persona_result.scalar_one_or_none()
+    financial_data = persona.financial_metrics_json or {} if persona else {}
+    extracted = financial_data.get("extracted_profile", {})
 
     return {
         "name": current_user.name or "",
@@ -257,10 +260,22 @@ async def get_profile(
         "member_since": current_user.created_at.strftime("%B %Y"),
         "phone": profile.phone if profile else None,
         "city": profile.city if profile else None,
-        "risk": profile.risk if profile else None,
-        "goal": profile.goal if profile else None,
-        "horizon": profile.horizon if profile else None,
-        "experience": profile.experience if profile else None,
+        "risk": profile.risk if profile and profile.risk else (persona.risk_category if persona else None),
+        "goal": profile.goal if profile and profile.goal else ((extracted.get("goals") or [None])[0]),
+        "horizon": profile.horizon if profile and profile.horizon else extracted.get("investment_horizon"),
+        "experience": profile.experience if profile and profile.experience else extracted.get("experience"),
+        "age": extracted.get("age"),
+        "annual_income": extracted.get("annual_income"),
+        "monthly_expenses": extracted.get("monthly_expenses"),
+        "existing_investments": extracted.get("existing_investments", {}),
+        "goals": extracted.get("goals", []),
+        "investment_horizon": extracted.get("investment_horizon"),
+        "emergency_fund": extracted.get("emergency_fund"),
+        "debt": extracted.get("debt"),
+        "investment_behaviour": extracted.get("investment_behaviour"),
+        "persona_name": persona.persona_name if persona else None,
+        "investment_style": persona.investment_style if persona else None,
+        "risk_score": persona.risk_score if persona else None,
     }
 
 

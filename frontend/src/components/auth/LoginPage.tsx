@@ -42,7 +42,22 @@ export function LoginPage() {
       storage.setItem("user_id", data.user_id);
       storage.setItem("user_name", data.name);
 
-      navigate({ to: "/dashboard" });
+      // Check onboarding status
+      const statusRes = await fetch(`${API_URL}/api/onboarding/status`, {
+        headers: { Authorization: `Bearer ${data.access_token}` },
+      });
+      if (statusRes.ok) {
+        const statusData = await statusRes.json();
+        if (statusData.onboarding_completed) {
+          navigate({ to: "/dashboard" });
+        } else {
+          sessionStorage.setItem("maven_onboarding_mode", "1");
+          navigate({ to: "/register" });
+        }
+      } else {
+        sessionStorage.setItem("maven_onboarding_mode", "1");
+        navigate({ to: "/register" });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to sign in");
     } finally {

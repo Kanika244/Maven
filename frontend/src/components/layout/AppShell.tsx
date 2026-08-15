@@ -1,10 +1,10 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Bell, Menu, Search, X } from "lucide-react";
 import { Brand } from "./Brand";
 import { navGroups, navItems } from "./nav";
 import { cx } from "@/lib/format";
-import { investor } from "@/lib/mock-data";
+import { API_BASE_URL } from "@/lib/api";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,8 +21,7 @@ function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () =
             {navItems
               .filter((i) => i.group === group)
               .map((item) => {
-                const active =
-                  item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
+                const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
                 return (
                   <Link
                     key={item.to}
@@ -38,7 +37,9 @@ function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () =
                     <item.icon
                       className={cx(
                         "h-4 w-4 shrink-0",
-                        active ? "text-primary" : "text-muted-foreground group-hover:text-foreground",
+                        active
+                          ? "text-primary"
+                          : "text-muted-foreground group-hover:text-foreground",
                       )}
                     />
                     <span className="truncate">{item.label}</span>
@@ -52,7 +53,17 @@ function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () =
   );
 }
 
-function UserCard() {
+type ShellProfile = { name?: string; risk?: string | null; investment_style?: string | null };
+
+function UserCard({ profile }: { profile: ShellProfile }) {
+  const name = profile.name || "MAVEN investor";
+  const initials =
+    name
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "M";
   return (
     <Link
       to="/profile"
@@ -60,12 +71,14 @@ function UserCard() {
     >
       <Avatar className="h-9 w-9">
         <AvatarFallback className="bg-primary/20 font-num text-sm font-semibold text-primary">
-          {investor.initials}
+          {initials}
         </AvatarFallback>
       </Avatar>
       <div className="min-w-0 leading-tight">
-        <div className="truncate text-sm font-medium">{investor.name}</div>
-        <div className="truncate text-xs text-muted-foreground">{investor.plan} · {investor.riskProfile}</div>
+        <div className="truncate text-sm font-medium">{name}</div>
+        <div className="truncate text-xs text-muted-foreground">
+          {profile.investment_style || "Investor"} · {profile.risk || "Profile pending"}
+        </div>
       </div>
     </Link>
   );
@@ -74,6 +87,18 @@ function UserCard() {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [profile, setProfile] = useState<ShellProfile>({});
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+    if (!token) return;
+    fetch(`${API_BASE_URL}/api/auth/profile`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setProfile(data);
+      })
+      .catch(() => undefined);
+  }, []);
 
   return (
     <div className="min-h-screen w-full bg-background">
@@ -85,7 +110,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="flex-1 overflow-y-auto">
           <NavList pathname={pathname} />
         </div>
-        <UserCard />
+        <UserCard profile={profile} />
       </aside>
 
       {/* Mobile drawer */}
@@ -105,7 +130,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="flex-1 overflow-y-auto">
               <NavList pathname={pathname} onNavigate={() => setMobileOpen(false)} />
             </div>
-            <UserCard />
+            <UserCard profile={profile} />
           </aside>
         </div>
       )}

@@ -1,0 +1,44 @@
+# ==========================
+# Node
+# ==========================
+node_modules/
+**/node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ==========================
+# Python
+# ==========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# ==========================
+# Environment
+# ==========================
+.env
+.env.*
+
+# ==========================
+# IDE
+# ==========================
+.vscode/
+.idea/
+
+# ==========================
+# OS
+# ==========================
+.DS_Store
+Thumbs.db

@@ -117,6 +117,37 @@ class QuarterlyFinancial(Base):
     yoy_profit_growth: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+class InvestorPersona(Base):
+    __tablename__ = "investor_personas"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), unique=True, index=True, nullable=False)
+    persona_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    investment_style: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    risk_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    risk_category: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    profile_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    financial_metrics_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    recommended_allocation_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    llm_summary: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    onboarding_completed: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+
+
+class OnboardingConversation(Base):
+    __tablename__ = "onboarding_conversations"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), index=True, nullable=False)
+    conversation_id: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    role: Mapped[str] = mapped_column(String, nullable=False)
+    message: Mapped[str] = mapped_column(String, nullable=False)
+    extracted_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    graph_node: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 
 # ---------- Pydantic schemas ----------
 

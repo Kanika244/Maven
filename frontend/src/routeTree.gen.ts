@@ -20,6 +20,7 @@ import { Route as AppRecommendationsRouteImport } from './routes/_app.recommenda
 import { Route as AppRebalancingRouteImport } from './routes/_app.rebalancing'
 import { Route as AppProfileRouteImport } from './routes/_app.profile'
 import { Route as AppPortfolioRouteImport } from './routes/_app.portfolio'
+import { Route as AppOnboardingRouteImport } from './routes/_app.onboarding'
 import { Route as AppNewsRouteImport } from './routes/_app.news'
 import { Route as AppMarketRouteImport } from './routes/_app.market'
 import { Route as AppExplainabilityRouteImport } from './routes/_app.explainability'
@@ -80,6 +81,11 @@ const AppPortfolioRoute = AppPortfolioRouteImport.update({
   path: '/portfolio',
   getParentRoute: () => AppRoute,
 } as any)
+const AppOnboardingRoute = AppOnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppNewsRoute = AppNewsRouteImport.update({
   id: '/news',
   path: '/news',
@@ -117,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/explainability': typeof AppExplainabilityRoute
   '/market': typeof AppMarketRoute
   '/news': typeof AppNewsRoute
+  '/onboarding': typeof AppOnboardingRoute
   '/portfolio': typeof AppPortfolioRoute
   '/profile': typeof AppProfileRoute
   '/rebalancing': typeof AppRebalancingRoute
@@ -134,6 +141,7 @@ export interface FileRoutesByTo {
   '/explainability': typeof AppExplainabilityRoute
   '/market': typeof AppMarketRoute
   '/news': typeof AppNewsRoute
+  '/onboarding': typeof AppOnboardingRoute
   '/portfolio': typeof AppPortfolioRoute
   '/profile': typeof AppProfileRoute
   '/rebalancing': typeof AppRebalancingRoute
@@ -153,6 +161,7 @@ export interface FileRoutesById {
   '/_app/explainability': typeof AppExplainabilityRoute
   '/_app/market': typeof AppMarketRoute
   '/_app/news': typeof AppNewsRoute
+  '/_app/onboarding': typeof AppOnboardingRoute
   '/_app/portfolio': typeof AppPortfolioRoute
   '/_app/profile': typeof AppProfileRoute
   '/_app/rebalancing': typeof AppRebalancingRoute
@@ -172,6 +181,7 @@ export interface FileRouteTypes {
     | '/explainability'
     | '/market'
     | '/news'
+    | '/onboarding'
     | '/portfolio'
     | '/profile'
     | '/rebalancing'
@@ -189,6 +199,7 @@ export interface FileRouteTypes {
     | '/explainability'
     | '/market'
     | '/news'
+    | '/onboarding'
     | '/portfolio'
     | '/profile'
     | '/rebalancing'
@@ -207,6 +218,7 @@ export interface FileRouteTypes {
     | '/_app/explainability'
     | '/_app/market'
     | '/_app/news'
+    | '/_app/onboarding'
     | '/_app/portfolio'
     | '/_app/profile'
     | '/_app/rebalancing'
@@ -302,6 +314,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPortfolioRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/onboarding': {
+      id: '/_app/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof AppOnboardingRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/news': {
       id: '/_app/news'
       path: '/news'
@@ -346,6 +365,7 @@ interface AppRouteChildren {
   AppExplainabilityRoute: typeof AppExplainabilityRoute
   AppMarketRoute: typeof AppMarketRoute
   AppNewsRoute: typeof AppNewsRoute
+  AppOnboardingRoute: typeof AppOnboardingRoute
   AppPortfolioRoute: typeof AppPortfolioRoute
   AppProfileRoute: typeof AppProfileRoute
   AppRebalancingRoute: typeof AppRebalancingRoute
@@ -359,6 +379,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppExplainabilityRoute: AppExplainabilityRoute,
   AppMarketRoute: AppMarketRoute,
   AppNewsRoute: AppNewsRoute,
+  AppOnboardingRoute: AppOnboardingRoute,
   AppPortfolioRoute: AppPortfolioRoute,
   AppProfileRoute: AppProfileRoute,
   AppRebalancingRoute: AppRebalancingRoute,

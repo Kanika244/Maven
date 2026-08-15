@@ -58,20 +58,29 @@ type MarketCompany = {
   pct_change: number | null;
 };
 
+type InvestorProfile = { name?: string; risk?: string | null; persona_name?: string | null };
+
 function Dashboard() {
   const [overview, setOverview] = useState<MarketOverview | null>(null);
   const [companies, setCompanies] = useState<MarketCompany[]>([]);
   const [marketLoading, setMarketLoading] = useState(true);
+  const [profile, setProfile] = useState<InvestorProfile>({});
 
   useEffect(() => {
     async function load() {
       try {
-        const [overviewRes, companiesRes] = await Promise.all([
+        const token =
+          localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+        const [overviewRes, companiesRes, profileRes] = await Promise.all([
           fetch(`${API_BASE_URL}/api/market/overview`),
           fetch(`${API_BASE_URL}/api/market/companies`),
+          fetch(`${API_BASE_URL}/api/auth/profile`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          }),
         ]);
         if (overviewRes.ok) setOverview(await overviewRes.json());
         if (companiesRes.ok) setCompanies(await companiesRes.json());
+        if (profileRes.ok) setProfile(await profileRes.json());
       } catch {
         // Card falls back to "—" placeholders below — rest of the
         // dashboard doesn't depend on this, so no page-level error state.
@@ -83,7 +92,10 @@ function Dashboard() {
   }, []);
 
   const { gainers, losers } = useMemo(() => {
-    const ranked = companies.filter((c) => c.pct_change != null) as { symbol: string; pct_change: number }[];
+    const ranked = companies.filter((c) => c.pct_change != null) as {
+      symbol: string;
+      pct_change: number;
+    }[];
     const sorted = [...ranked].sort((a, b) => b.pct_change - a.pct_change);
     return { gainers: sorted.slice(0, 3), losers: sorted.slice(-3).reverse() };
   }, [companies]);
@@ -91,7 +103,7 @@ function Dashboard() {
   return (
     <div>
       <PageHeader
-        eyebrow="Good morning, Aarav"
+        eyebrow={`Good morning${profile.name ? `, ${profile.name.split(" ")[0]}` : ""}`}
         title="Portfolio Command Center"
         subtitle="A unified view of your wealth, powered by MAVEN's multi-agent intelligence."
         actions={
@@ -127,7 +139,7 @@ function Dashboard() {
         />
         <StatCard
           label="Risk Level"
-          value={portfolioSummary.riskLevel}
+          value={profile.risk || portfolioSummary.riskLevel}
           hint={`β ${portfolioSummary.beta} · vol ${portfolioSummary.volatility}%`}
           icon={ShieldHalf}
         />
@@ -138,7 +150,9 @@ function Dashboard() {
           <CardHeader className="flex-row items-center justify-between">
             <div>
               <CardTitle>Portfolio Performance</CardTitle>
-              <p className="mt-1 text-xs text-muted-foreground">Portfolio vs Nifty 50 · last 12 months (₹ thousands)</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Portfolio vs Nifty 50 · last 12 months (₹ thousands)
+              </p>
             </div>
             <Badge variant="secondary" className="gap-1">
               <Activity className="h-3 w-3" /> Outperforming +4.2%
@@ -203,7 +217,9 @@ function Dashboard() {
                     <span className="truncate text-sm font-medium">{r.name}</span>
                     <ActionBadge action={r.action} />
                   </div>
-                  <div className="mt-1 max-w-md truncate text-xs text-muted-foreground">{r.thesis}</div>
+                  <div className="mt-1 max-w-md truncate text-xs text-muted-foreground">
+                    {r.thesis}
+                  </div>
                 </div>
                 <div className="hidden w-36 shrink-0 sm:block">
                   <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -212,8 +228,12 @@ function Dashboard() {
                   <ConfidenceBar value={r.confidence} />
                 </div>
                 <div className="w-16 shrink-0 text-right">
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Exp.</div>
-                  <span className={`font-num text-sm font-semibold ${r.expectedReturn >= 0 ? "text-positive" : "text-negative"}`}>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Exp.
+                  </div>
+                  <span
+                    className={`font-num text-sm font-semibold ${r.expectedReturn >= 0 ? "text-positive" : "text-negative"}`}
+                  >
                     {pct(r.expectedReturn)}
                   </span>
                 </div>
@@ -281,11 +301,15 @@ function Dashboard() {
                 </div>
                 <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
                   <div className="rounded-lg bg-positive/10 p-2">
-                    <div className="font-num text-lg font-semibold text-positive">{overview?.advances ?? "—"}</div>
+                    <div className="font-num text-lg font-semibold text-positive">
+                      {overview?.advances ?? "—"}
+                    </div>
                     <div className="text-muted-foreground">Advances</div>
                   </div>
                   <div className="rounded-lg bg-negative/10 p-2">
-                    <div className="font-num text-lg font-semibold text-negative">{overview?.declines ?? "—"}</div>
+                    <div className="font-num text-lg font-semibold text-negative">
+                      {overview?.declines ?? "—"}
+                    </div>
                     <div className="text-muted-foreground">Declines</div>
                   </div>
                   <div className="rounded-lg bg-muted p-2">
@@ -295,7 +319,9 @@ function Dashboard() {
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-4">
                   <div>
-                    <div className="mb-1 text-[10px] uppercase tracking-wider text-positive">Top Gainers</div>
+                    <div className="mb-1 text-[10px] uppercase tracking-wider text-positive">
+                      Top Gainers
+                    </div>
                     {gainers.length > 0 ? (
                       gainers.map((g) => (
                         <div key={g.symbol} className="flex justify-between py-0.5 text-xs">
@@ -308,7 +334,9 @@ function Dashboard() {
                     )}
                   </div>
                   <div>
-                    <div className="mb-1 text-[10px] uppercase tracking-wider text-negative">Top Losers</div>
+                    <div className="mb-1 text-[10px] uppercase tracking-wider text-negative">
+                      Top Losers
+                    </div>
                     {losers.length > 0 ? (
                       losers.map((l) => (
                         <div key={l.symbol} className="flex justify-between py-0.5 text-xs">
@@ -340,13 +368,19 @@ function Dashboard() {
           </CardHeader>
           <CardContent className="space-y-3">
             {news.slice(0, 3).map((n) => (
-              <Link key={n.id} to="/news" className="block rounded-lg p-2 transition-colors hover:bg-muted/50">
+              <Link
+                key={n.id}
+                to="/news"
+                className="block rounded-lg p-2 transition-colors hover:bg-muted/50"
+              >
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-medium leading-snug">{n.title}</p>
                 </div>
                 <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
                   <SentimentBadge sentiment={n.sentiment} />
-                  <span>· {n.source} · {n.time}</span>
+                  <span>
+                    · {n.source} · {n.time}
+                  </span>
                 </div>
               </Link>
             ))}
@@ -362,7 +396,10 @@ function Dashboard() {
           </CardHeader>
           <CardContent className="space-y-3">
             {marketInsights.map((m) => (
-              <div key={m.title} className="rounded-lg border border-border/60 bg-background/40 p-3">
+              <div
+                key={m.title}
+                className="rounded-lg border border-border/60 bg-background/40 p-3"
+              >
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">{m.title}</span>
                   <SentimentBadge sentiment={m.tone} />

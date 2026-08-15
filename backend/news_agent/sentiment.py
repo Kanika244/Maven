@@ -1,13 +1,13 @@
 import json
 import logging
-import os
 
 from groq import Groq
+from investor_onboarding.groq_utils import get_groq_api_key
 
 logger = logging.getLogger(__name__)
 
 
-_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+_client = Groq(api_key=get_groq_api_key())
 
 # Free, fast Llama model on Groq. Swap this string if Groq changes their
 # free-tier model lineup.

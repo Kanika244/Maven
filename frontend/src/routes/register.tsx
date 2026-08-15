@@ -1,5 +1,5 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -17,26 +17,23 @@ import { AuthLayout } from "@/components/auth/AuthLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cx } from "@/lib/format";
 import { apiFetch, API_BASE_URL } from "@/lib/api";
+import { OnboardingFlow } from "@/components/auth/OnboardingFlow";
 
 export const Route = createFileRoute("/register")({
   head: () => ({ meta: [{ title: "Create account — MAVEN" }] }),
   component: RegisterPage,
 });
 
-type StepId = "account" | "personal" | "pan" | "aadhaar" | "persona" | "review";
+type StepId = "account" | "personal" | "pan" | "aadhaar";
 
 const STEPS: { id: StepId; label: string }[] = [
   { id: "account", label: "Account" },
   { id: "personal", label: "Personal" },
   { id: "pan", label: "PAN" },
   { id: "aadhaar", label: "Aadhaar" },
-  { id: "persona", label: "Persona" },
-  { id: "review", label: "Review" },
 ];
 
 type VerifyState = "idle" | "verifying" | "verified";
@@ -52,11 +49,6 @@ type FormState = {
   panFile: string | null;
   aadhaar: string;
   aadhaarFile: string | null;
-  risk: string;
-  goal: string;
-  horizon: string;
-  experience: string;
-  agree: boolean;
 };
 
 const initialForm: FormState = {
@@ -70,17 +62,17 @@ const initialForm: FormState = {
   panFile: null,
   aadhaar: "",
   aadhaarFile: null,
-  risk: "moderate",
-  goal: "wealth",
-  horizon: "long",
-  experience: "intermediate",
-  agree: false,
 };
 
 function RegisterPage() {
-  const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormState>(initialForm);
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const onboardingMode = sessionStorage.getItem("maven_onboarding_mode") === "1";
+    sessionStorage.removeItem("maven_onboarding_mode");
+    return onboardingMode;
+  });
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((p) => ({ ...p, [k]: v }));
@@ -90,7 +82,7 @@ function RegisterPage() {
   const back = () => setStep((s) => Math.max(s - 1, 0));
 
   async function submitProfile() {
-    const token = localStorage.getItem("access_token");
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
     const res = await fetch(`${API_BASE_URL}/api/auth/profile`, {
       method: "POST",
       headers: {
@@ -101,20 +93,18 @@ function RegisterPage() {
         full_name: form.fullName,
         phone: form.phone,
         city: form.city,
-        risk: form.risk,
-        goal: form.goal,
-        horizon: form.horizon,
-        experience: form.experience,
       }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(body.detail ?? "Could not save your profile");
     }
-    navigate({ to: "/" });
+    setShowOnboarding(true);
   }
 
-  return (
+  return showOnboarding ? (
+    <OnboardingFlow />
+  ) : (
     <AuthLayout
       wide
       title="Create your account"
@@ -129,13 +119,7 @@ function RegisterPage() {
         )}
         {current === "pan" && <PanStep form={form} set={set} onNext={next} onBack={back} />}
         {current === "aadhaar" && (
-          <AadhaarStep form={form} set={set} onNext={next} onBack={back} />
-        )}
-        {current === "persona" && (
-          <PersonaStep form={form} set={set} onNext={next} onBack={back} />
-        )}
-        {current === "review" && (
-          <ReviewStep form={form} set={set} onBack={back} onSubmit={submitProfile} />
+          <AadhaarStep form={form} set={set} onBack={back} onSubmit={submitProfile} />
         )}
       </div>
 
@@ -194,12 +178,10 @@ function Stepper({ step }: { step: number }) {
 
 function StepNav({
   onBack,
-  onNext,
   nextLabel = "Continue",
   nextDisabled,
 }: {
   onBack?: () => void;
-  onNext?: () => void;
   nextLabel?: string;
   nextDisabled?: boolean;
 }) {
@@ -210,7 +192,7 @@ function StepNav({
           <ArrowLeft className="h-4 w-4" /> Back
         </Button>
       )}
-      <Button type="submit" className="flex-1" disabled={nextDisabled} onClick={onNext}>
+      <Button type="submit" className="flex-1" disabled={nextDisabled}>
         {nextLabel} <ArrowRight className="h-4 w-4" />
       </Button>
     </div>
@@ -224,7 +206,6 @@ type StepProps = {
   onBack?: () => void;
 };
 
-/* ---------------- Step 1: Email -> OTP -> Password ---------------- */
 function AccountStep({ form, set, onNext }: StepProps) {
   const [phase, setPhase] = useState<"email" | "otp" | "password">("email");
   const [otp, setOtp] = useState("");
@@ -274,12 +255,11 @@ function AccountStep({ form, set, onNext }: StepProps) {
         method: "POST",
         body: JSON.stringify({ email: form.email, password: form.password }),
       });
-      // Auto sign-in so subsequent steps (KYC upload) have a bearer token
       const loginData = await apiFetch("/api/auth/login", {
         method: "POST",
         body: JSON.stringify({ email: form.email, password: form.password }),
       });
-      localStorage.setItem("token", loginData.access_token);
+      localStorage.setItem("access_token", loginData.access_token);
       localStorage.setItem("user_name", loginData.name ?? "");
       onNext();
     } catch (err) {
@@ -321,7 +301,8 @@ function AccountStep({ form, set, onNext }: StepProps) {
         <div className="space-y-2">
           <Label>Enter verification code</Label>
           <p className="text-xs text-muted-foreground">
-            Sent to <span className="font-medium text-foreground">{form.email || "your email"}</span>.
+            Sent to{" "}
+            <span className="font-medium text-foreground">{form.email || "your email"}</span>.
           </p>
           <div className="pt-1">
             <InputOTP maxLength={6} value={otp} onChange={setOtp}>
@@ -388,14 +369,17 @@ function AccountStep({ form, set, onNext }: StepProps) {
         className="w-full"
         disabled={!form.password || form.password !== form.confirm || loading}
       >
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+        {loading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <ArrowRight className="h-4 w-4" />
+        )}
         {loading ? "Creating account..." : "Continue"}
       </Button>
     </form>
   );
 }
 
-/* ---------------- Step 2: Personal info ---------------- */
 function PersonalStep({ form, set, onNext, onBack }: StepProps) {
   return (
     <form
@@ -446,7 +430,6 @@ function PersonalStep({ form, set, onNext, onBack }: StepProps) {
   );
 }
 
-/* ---------------- Doc upload + verify ---------------- */
 function DocVerify({
   icon: Icon,
   docType,
@@ -487,7 +470,7 @@ function DocVerify({
     setState("verifying");
     setError(null);
 
-    const token = localStorage.getItem("access_token");
+    const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
     const formData = new FormData();
     formData.append("doc_type", docType);
     formData.append("file", localFile);
@@ -538,7 +521,7 @@ function DocVerify({
           )}
         />
         <p className="text-xs text-muted-foreground">
-          Auto-filled from your upload — double-check it matches your document.
+          Auto-filled from your upload - double-check it matches your document.
         </p>
       </div>
 
@@ -555,9 +538,7 @@ function DocVerify({
           <span className="grid h-10 w-10 place-items-center rounded-full bg-primary/10 text-primary">
             {file ? <Icon className="h-5 w-5" /> : <Upload className="h-5 w-5" />}
           </span>
-          <span className="text-sm font-medium">
-            {file ?? `Click to upload ${docLabel}`}
-          </span>
+          <span className="text-sm font-medium">{file ?? `Click to upload ${docLabel}`}</span>
           <span className="text-xs text-muted-foreground">JPG, PNG, or PDF up to 10MB</span>
         </button>
         <input
@@ -592,7 +573,7 @@ function DocVerify({
       )}
       {state === "verifying" && (
         <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Reading {docLabel}…
+          <Loader2 className="h-4 w-4 animate-spin" /> Reading {docLabel}...
         </div>
       )}
       {state === "verified" && (
@@ -601,7 +582,11 @@ function DocVerify({
         </div>
       )}
 
-      <StepNav onBack={onBack} nextDisabled={state !== "verified" || !valid} />
+      <StepNav
+        onBack={onBack}
+        nextLabel="Continue to onboarding"
+        nextDisabled={state !== "verified" || !valid}
+      />
     </form>
   );
 }
@@ -614,7 +599,12 @@ function PanStep({ form, set, onNext, onBack }: StepProps) {
       docLabel="PAN"
       fieldLabel="PAN number"
       placeholder="ABCDE1234F"
-      format={(v) => v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10)}
+      format={(v) =>
+        v
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, "")
+          .slice(0, 10)
+      }
       value={form.pan}
       onValue={(v) => set("pan", v)}
       file={form.panFile}
@@ -626,234 +616,49 @@ function PanStep({ form, set, onNext, onBack }: StepProps) {
   );
 }
 
-function AadhaarStep({ form, set, onNext, onBack }: StepProps) {
-  return (
-    <DocVerify
-      icon={IdCard}
-      docType="aadhaar"
-      docLabel="Aadhaar"
-      fieldLabel="Aadhaar number"
-      placeholder="1234 5678 9012"
-      format={(v) => {
-        const d = v.replace(/\D/g, "").slice(0, 12);
-        return d.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
-      }}
-      value={form.aadhaar}
-      onValue={(v) => set("aadhaar", v)}
-      file={form.aadhaarFile}
-      onFile={(n) => set("aadhaarFile", n)}
-      valid={form.aadhaar.replace(/\s/g, "").length === 12}
-      onNext={onNext}
-      onBack={onBack}
-    />
-  );
-}
-
-/* ---------------- Step 5: Persona questions ---------------- */
-const RISK_OPTS = [
-  { value: "conservative", label: "Conservative", desc: "Protect capital, minimal swings" },
-  { value: "moderate", label: "Moderate", desc: "Balanced growth & stability" },
-  { value: "aggressive", label: "Aggressive", desc: "Maximise growth, accept volatility" },
-];
-const GOAL_OPTS = [
-  { value: "wealth", label: "Long-term wealth" },
-  { value: "retirement", label: "Retirement" },
-  { value: "income", label: "Regular income" },
-  { value: "tax", label: "Tax-efficient growth" },
-];
-const HORIZON_OPTS = [
-  { value: "short", label: "< 3 years" },
-  { value: "medium", label: "3–7 years" },
-  { value: "long", label: "7+ years" },
-];
-const EXP_OPTS = [
-  { value: "beginner", label: "Beginner" },
-  { value: "intermediate", label: "Intermediate" },
-  { value: "expert", label: "Expert" },
-];
-
-function PersonaStep({ form, set, onNext, onBack }: StepProps) {
-  return (
-    <form
-      className="space-y-5"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onNext();
-      }}
-    >
-      <div className="space-y-2">
-        <Label>What's your risk appetite?</Label>
-        <RadioGroup value={form.risk} onValueChange={(v) => set("risk", v)} className="gap-2">
-          {RISK_OPTS.map((o) => (
-            <label
-              key={o.value}
-              className={cx(
-                "flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors",
-                form.risk === o.value ? "border-primary bg-primary/5" : "border-border",
-              )}
-            >
-              <RadioGroupItem value={o.value} className="mt-0.5" />
-              <div>
-                <div className="text-sm font-medium">{o.label}</div>
-                <div className="text-xs text-muted-foreground">{o.desc}</div>
-              </div>
-            </label>
-          ))}
-        </RadioGroup>
-      </div>
-
-      <ChipGroup
-        label="Primary investment goal"
-        options={GOAL_OPTS}
-        value={form.goal}
-        onChange={(v) => set("goal", v)}
-      />
-      <ChipGroup
-        label="Investment horizon"
-        options={HORIZON_OPTS}
-        value={form.horizon}
-        onChange={(v) => set("horizon", v)}
-      />
-      <ChipGroup
-        label="Investing experience"
-        options={EXP_OPTS}
-        value={form.experience}
-        onChange={(v) => set("experience", v)}
-      />
-
-      <StepNav onBack={onBack} nextLabel="Review details" />
-    </form>
-  );
-}
-
-function ChipGroup({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string;
-  options: { value: string; label: string }[];
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <div className="flex flex-wrap gap-2">
-        {options.map((o) => (
-          <button
-            key={o.value}
-            type="button"
-            onClick={() => onChange(o.value)}
-            className={cx(
-              "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-              value === o.value
-                ? "border-primary bg-primary/12 text-primary"
-                : "border-border/60 text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ---------------- Step 6: Review ---------------- */
-function ReviewStep({
+function AadhaarStep({
   form,
   set,
   onBack,
   onSubmit,
-}: {
-  form: FormState;
-  set: <K extends keyof FormState>(k: K, v: FormState[K]) => void;
-  onBack: () => void;
-  onSubmit: () => Promise<void>;
-}) {
-  const [loading, setLoading] = useState(false);
+}: Omit<StepProps, "onNext"> & { onSubmit: () => Promise<void> }) {
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const label = (opts: { value: string; label: string }[], v: string) =>
-    opts.find((o) => o.value === v)?.label ?? v;
-
-  const rows = useMemo(
-    () => [
-      { k: "Email", v: form.email || "—", verified: true },
-      { k: "Full name", v: form.fullName || "—" },
-      { k: "Phone", v: form.phone ? `+91 ${form.phone}` : "—" },
-      { k: "City", v: form.city || "—" },
-      { k: "PAN", v: form.pan || "—", verified: !!form.panFile },
-      {
-        k: "Aadhaar",
-        v: form.aadhaar ? `XXXX XXXX ${form.aadhaar.slice(-4)}` : "—",
-        verified: !!form.aadhaarFile,
-      },
-      { k: "Risk appetite", v: label(RISK_OPTS, form.risk) },
-      { k: "Goal", v: label(GOAL_OPTS, form.goal) },
-      { k: "Horizon", v: label(HORIZON_OPTS, form.horizon) },
-      { k: "Experience", v: label(EXP_OPTS, form.experience) },
-    ],
-    [form],
-  );
-
   return (
-    <form
-      className="space-y-4"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        setError(null);
-        setLoading(true);
-        try {
-          await onSubmit();
-        } catch (err) {
-          setError(err instanceof Error ? err.message : "Could not save your profile");
-        } finally {
-          setLoading(false);
-        }
-      }}
-    >
-      <div className="overflow-hidden rounded-lg border border-border">
-        {rows.map((r, i) => (
-          <div
-            key={r.k}
-            className={cx(
-              "flex items-center justify-between gap-3 px-4 py-2.5 text-sm",
-              i % 2 === 0 && "bg-muted/20",
-            )}
-          >
-            <span className="text-muted-foreground">{r.k}</span>
-            <span className="flex items-center gap-1.5 text-right font-medium">
-              {r.v}
-              {r.verified && <BadgeCheck className="h-3.5 w-3.5 text-positive" />}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      <label className="flex items-start gap-2 text-xs text-muted-foreground">
-        <Checkbox
-          className="mt-0.5"
-          checked={form.agree}
-          onCheckedChange={(v) => set("agree", v === true)}
-        />
-        I agree to the Terms of Service and understand MAVEN provides educational insights, not
-        investment advice.
-      </label>
-
+    <div className="space-y-4">
+      <DocVerify
+        icon={IdCard}
+        docType="aadhaar"
+        docLabel="Aadhaar"
+        fieldLabel="Aadhaar number"
+        placeholder="1234 5678 9012"
+        format={(v) => {
+          const d = v.replace(/\D/g, "").slice(0, 12);
+          return d.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+        }}
+        value={form.aadhaar}
+        onValue={(v) => set("aadhaar", v)}
+        file={form.aadhaarFile}
+        onFile={(n) => set("aadhaarFile", n)}
+        valid={form.aadhaar.replace(/\s/g, "").length === 12}
+        onNext={async () => {
+          setError(null);
+          setSaving(true);
+          try {
+            await onSubmit();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Could not save your profile");
+          } finally {
+            setSaving(false);
+          }
+        }}
+        onBack={onBack}
+      />
       {error && <p className="text-sm text-destructive">{error}</p>}
-
-      <div className="flex items-center gap-3">
-        <Button type="button" variant="outline" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4" /> Back
-        </Button>
-        <Button type="submit" className="flex-1" disabled={!form.agree || loading}>
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserRound className="h-4 w-4" />}
-          {loading ? "Saving..." : "Create account"}
-        </Button>
-      </div>
-    </form>
+      {saving && (
+        <p className="text-xs text-muted-foreground">Saving profile and opening onboarding...</p>
+      )}
+    </div>
   );
 }

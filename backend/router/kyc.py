@@ -45,6 +45,29 @@ from router.auth import get_current_user
 # pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 
+def _configure_tesseract() -> None:
+    """Prefer an explicit env var, then common Windows install locations."""
+    if getattr(pytesseract.pytesseract, "tesseract_cmd", None):
+        return
+
+    env_path = os.getenv("TESSERACT_CMD")
+    if env_path:
+        pytesseract.pytesseract.tesseract_cmd = env_path
+        return
+
+    candidates = [
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    ]
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            pytesseract.pytesseract.tesseract_cmd = candidate
+            return
+
+
+_configure_tesseract()
+
+
 # ============================================================
 # 1. DB table — stores what OCR extracted, per uploaded document
 # ============================================================
@@ -93,6 +116,10 @@ def _extract_text_sync(file_content: bytes, is_pdf: bool) -> str:
 
 
 async def extract_text_async(file_content: bytes, is_pdf: bool) -> str:
+    if not is_pdf and not pytesseract.pytesseract.tesseract_cmd:
+        raise RuntimeError(
+            "Tesseract OCR is not installed or not configured. Set TESSERACT_CMD to the tesseract.exe path."
+        )
     return await run_in_threadpool(_extract_text_sync, file_content, is_pdf)
 
 
@@ -105,6 +132,11 @@ NAME_BLOCKLIST = [
     "MALE", "FEMALE", "AADHAAR", "PERMANENT", "ACCOUNT", "NUMBER",
     "CARD", "DEPARTMENT",
 ]
+
+
+def _normalize_ocr_text(text: str) -> str:
+    """Collapse OCR noise so ID patterns are easier to detect."""
+    return re.sub(r"[^A-Z0-9\s]", " ", text.upper())
 
 
 def _extract_name(text: str) -> Optional[str]:
@@ -127,8 +159,18 @@ def parse_document(text: str, doc_type: str):
         return extracted_id, _extract_name(text)
 
     if doc_type == "pan":
-        match = re.search(r"\b[A-Z]{5}[0-9]{4}[A-Z]\b", text.upper())
-        extracted_id = match.group() if match else None
+        normalized = _normalize_ocr_text(text)
+        match = re.search(r"\b[A-Z]{5}\s*[0-9O]{4}\s*[A-Z]\b", normalized)
+        extracted_id = None
+        if match:
+            extracted_id = re.sub(r"\s+", "", match.group()).replace("O", "0")
+        else:
+            compact = re.sub(r"[^A-Z0-9]", "", normalized).replace("O", "0")
+            for i in range(len(compact) - 9):
+                candidate = compact[i : i + 10]
+                if re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]", candidate):
+                    extracted_id = candidate
+                    break
         return extracted_id, _extract_name(text)
 
     raise ValueError(f"Unsupported doc_type: {doc_type}")
@@ -166,6 +208,8 @@ async def upload_kyc_document(
 
     try:
         text = await extract_text_async(content, is_pdf)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
     except Exception:
         raise HTTPException(status_code=422, detail="Could not read the document — try a clearer scan/photo")
 
