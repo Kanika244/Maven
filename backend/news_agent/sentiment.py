@@ -11,7 +11,7 @@ _client = Groq(api_key=get_groq_api_key())
 
 # Free, fast Llama model on Groq. Swap this string if Groq changes their
 # free-tier model lineup.
-_MODEL = "llama-3.1-8b-instant"
+_MODEL = "openai/gpt-oss-20b"
 
 _SYSTEM_PROMPT = (
     "You are a financial news sentiment classifier for an investing app. "

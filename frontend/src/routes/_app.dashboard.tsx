@@ -17,7 +17,6 @@ import {
   news,
   performanceSeries,
   portfolioSummary,
-  recommendations,
 } from "@/lib/mock-data";
 import { inr, pct } from "@/lib/format";
 import {
@@ -60,30 +59,51 @@ type MarketCompany = {
 
 type InvestorProfile = { name?: string; risk?: string | null; persona_name?: string | null };
 
+type RecommendationRaw = {
+  id: string;
+  symbol: string;
+  name: string | null;
+  action: "BUY" | "HOLD" | "SELL" | "TRIM";
+  thesis: string;
+  confidence: number;
+  expected_return_pct: number;
+};
+
+function displayAction(a: RecommendationRaw["action"]): "Buy" | "Hold" | "Sell" {
+  if (a === "BUY") return "Buy";
+  if (a === "HOLD") return "Hold";
+  return "Sell"; // SELL or TRIM — see recommendations page for the same note
+}
+
 function Dashboard() {
   const [overview, setOverview] = useState<MarketOverview | null>(null);
   const [companies, setCompanies] = useState<MarketCompany[]>([]);
   const [marketLoading, setMarketLoading] = useState(true);
   const [profile, setProfile] = useState<InvestorProfile>({});
+  const [recs, setRecs] = useState<RecommendationRaw[]>([]);
 
   useEffect(() => {
     async function load() {
       try {
         const token =
           localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
-        const [overviewRes, companiesRes, profileRes] = await Promise.all([
+        const [overviewRes, companiesRes, profileRes, recsRes] = await Promise.all([
           fetch(`${API_BASE_URL}/api/market/overview`),
           fetch(`${API_BASE_URL}/api/market/companies`),
           fetch(`${API_BASE_URL}/api/auth/profile`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           }),
+          token
+            ? fetch(`${API_BASE_URL}/api/recommendations`, { headers: { Authorization: `Bearer ${token}` } })
+            : Promise.resolve(null),
         ]);
         if (overviewRes.ok) setOverview(await overviewRes.json());
         if (companiesRes.ok) setCompanies(await companiesRes.json());
         if (profileRes.ok) setProfile(await profileRes.json());
+        if (recsRes?.ok) setRecs(await recsRes.json());
       } catch {
-        // Card falls back to "—" placeholders below — rest of the
-        // dashboard doesn't depend on this, so no page-level error state.
+        // Cards fall back to "—" placeholders / empty states below — rest
+        // of the dashboard doesn't depend on this.
       } finally {
         setMarketLoading(false);
       }
@@ -203,42 +223,50 @@ function Dashboard() {
             </Button>
           </CardHeader>
           <CardContent className="space-y-3">
-            {recommendations.slice(0, 3).map((r) => (
-              <Link
-                key={r.id}
-                to="/explainability"
-                className="flex items-center gap-4 rounded-xl border border-border/60 bg-card/50 p-3 transition-colors hover:border-primary/40 hover:bg-card"
-              >
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-muted font-num text-xs font-bold">
-                  {r.symbol.slice(0, 4)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-medium">{r.name}</span>
-                    <ActionBadge action={r.action} />
+            {recs.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                {localStorage.getItem("access_token") || sessionStorage.getItem("access_token")
+                  ? "No recommendations yet — check back after your profile and market data have synced."
+                  : "Log in to see personalized picks."}
+              </p>
+            ) : (
+              recs.slice(0, 3).map((r) => (
+                <Link
+                  key={r.id}
+                  to="/explainability"
+                  className="flex items-center gap-4 rounded-xl border border-border/60 bg-card/50 p-3 transition-colors hover:border-primary/40 hover:bg-card"
+                >
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-muted font-num text-xs font-bold">
+                    {r.symbol.slice(0, 4)}
                   </div>
-                  <div className="mt-1 max-w-md truncate text-xs text-muted-foreground">
-                    {r.thesis}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium">{r.name ?? r.symbol}</span>
+                      <ActionBadge action={displayAction(r.action)} />
+                    </div>
+                    <div className="mt-1 max-w-md truncate text-xs text-muted-foreground">
+                      {r.thesis}
+                    </div>
                   </div>
-                </div>
-                <div className="hidden w-36 shrink-0 sm:block">
-                  <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Confidence
+                  <div className="hidden w-36 shrink-0 sm:block">
+                    <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Confidence
+                    </div>
+                    <ConfidenceBar value={r.confidence} />
                   </div>
-                  <ConfidenceBar value={r.confidence} />
-                </div>
-                <div className="w-16 shrink-0 text-right">
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Exp.
+                  <div className="w-16 shrink-0 text-right">
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Exp.
+                    </div>
+                    <span
+                      className={`font-num text-sm font-semibold ${r.expected_return_pct >= 0 ? "text-positive" : "text-negative"}`}
+                    >
+                      {pct(r.expected_return_pct)}
+                    </span>
                   </div>
-                  <span
-                    className={`font-num text-sm font-semibold ${r.expectedReturn >= 0 ? "text-positive" : "text-negative"}`}
-                  >
-                    {pct(r.expectedReturn)}
-                  </span>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              ))
+            )}
           </CardContent>
         </Card>
 

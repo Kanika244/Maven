@@ -13,7 +13,7 @@ from groq import Groq
 logger = logging.getLogger(__name__)
 
 _client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-_MODEL = "llama-3.1-8b-instant"
+_MODEL = "openai/gpt-oss-20b"  # llama-3.1-8b-instant was deprecated/shut down by Groq on Aug 16, 2026 — this is Groq's own recommended replacement
 
 _SYSTEM_PROMPT = (
     "You are a market intelligence analyst for an Indian investing app. "

@@ -259,3 +259,39 @@ class QuarterlyFinancialResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# New models.py additions for the recommendation agent.
+#
+# Add this ORM class (near your other tables):
+
+class Recommendation(Base):
+    __tablename__ = "recommendations"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), index=True, nullable=False)
+    symbol: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    action: Mapped[str] = mapped_column(String, nullable=False)  # BUY | HOLD | SELL | TRIM
+    thesis: Mapped[str] = mapped_column(String, nullable=False)
+    confidence: Mapped[int] = mapped_column(Integer, nullable=False)
+    expected_return_pct: Mapped[float] = mapped_column(Float, nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+# Add this Pydantic response schema (near your other response schemas):
+
+class RecommendationResponse(BaseModel):
+    id: uuid.UUID  # was: id: str — UUID objects don't auto-coerce to str in Pydantic v2
+    symbol: str
+    name: Optional[str] = None
+    action: str
+    thesis: str
+    confidence: int
+    expected_return_pct: float
+    generated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+# No new imports needed — String, Float, Integer, DateTime, UUID, uuid,
+# datetime, Optional, BaseModel, func, Mapped, mapped_column, Base are
+# all already imported in your models.py from the market_agent additions.

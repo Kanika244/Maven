@@ -86,3 +86,6 @@ app.include_router(portfoliorouter, prefix="/api/portfolio", tags=["portfolio"])
 @app.get("/")
 async def home():
     return {"message": "MAVEN Backend Running "}
+
+from recommendation_agent.router import recommendationrouter
+app.include_router(recommendationrouter, prefix="/api/recommendations", tags=["recommendations"])
